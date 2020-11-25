@@ -2,6 +2,8 @@
 # Imports
 #----------------------------------------------------------------------------#
 import datetime
+from flask.json import jsonify
+# from starter_code.forms import ArtistForm, ShowForm, VenueForm
 import psycopg2
 import json
 import dateutil.parser
@@ -12,9 +14,11 @@ from flask_sqlalchemy import SQLAlchemy
 import logging
 from logging import Formatter, FileHandler
 from flask_wtf import Form
-from forms import *
-from config import *
+from starter_code.forms import *
+from starter_code.config import *
 from flask_migrate import Migrate
+from models import app, db, Venue, Artist, Show
+
 #----------------------------------------------------------------------------#
 # App Config.
 #----------------------------------------------------------------------------#
@@ -23,74 +27,17 @@ app = Flask(__name__)
 moment = Moment(app)
 app.config.from_object('config')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+moment = Moment(app)
 db = SQLAlchemy(app)
+db.init_app(app)
+
 
 # TODO: connect to a local postgresql database
 migrate = Migrate(app, db)
-#----------------------------------------------------------------------------#
-# Models.
-#----------------------------------------------------------------------------#
-
-class Venue(db.Model):
-    __tablename__ = 'Venue'
-
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String)
-    city = db.Column(db.String(120))
-    state = db.Column(db.String(120))
-    address = db.Column(db.String(120))
-    phone = db.Column(db.String(120))
-    image_link = db.Column(db.String(500))
-    facebook_link = db.Column(db.String(120))
-    facebook_link = db.Column(db.String(120))
-    website = db.Column(db.String(120), nullable=True)
-    genres = db.Column(db.ARRAY(db.String))
-    seeking_talent=db.Column(db.Boolean(), default=False)
-    seeking_description=db.Column(db.String(500),nullable=True)
-
-    shows = db.relationship('Show', backref='Venue', lazy=True)
-    # TODO: implement any missing fields, as a database migration using Flask-Migrate
-    # Done
-    #represent Venue object when querying
-    def __repr__(self):
-        return f'<Venue {self.id} {self.name}>'
 
 
-class Artist(db.Model):
-    __tablename__ = 'Artist'
+# -------------------------- Models imported from models.py file ------------#
 
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String)
-    city = db.Column(db.String(120))
-    state = db.Column(db.String(120))
-    phone = db.Column(db.String(120))
-    genres = db.Column(db.String(120))
-    image_link = db.Column(db.String(500))
-    facebook_link = db.Column(db.String(120))
-    website = db.Column(db.String(120))
-    seeking_venue=db.Column(db.Boolean(),default=False)
-    seeking_description=db.Column(db.String(500))
-
-    shows = db.relationship('Show', backref='Artist', lazy=True)
-    # TODO: implement any missing fields, as a database migration using Flask-Migrate
-    # Done
-
-    #represent Artist object when querying
-    def __repr__(self):
-        return f'<Artist {self.id} {self.name}>'
-
-class Show(db.Model):
-  __tablename__ = 'Show'
-  #Instead of using an association table only we used a model to have extra fields/columns "Start_time" and added ID as the primary key
-  id = db.Column(db.Integer,primary_key=True)
-  venue_id = db.Column(db.Integer, db.ForeignKey('Venue.id'), nullable=False)
-  artist_id = db.Column(db.Integer, db.ForeignKey('Artist.id'), nullable=False)
-  start_time = db.Column(db.DateTime, nullable=False)
-
-#represent Show object when querying
-  def __repr__(self):
-    return f'<Show {self.id}, Artist {self.artist_id}, Venue {self.venue_id}>'
-# TODO Implement Show and Artist models, and complete all model relationships and properties, as a database migration.
 
 #----------------------------------------------------------------------------#
 # Filters.
@@ -249,7 +196,11 @@ def create_venue_submission():
       genres= form.genres.data,
       address = form.address.data,
       phone = form.phone.data,
+      image_link = form.image_link.data,
       facebook_link = form.facebook_link.data,
+      website = form.website.data,
+      seeking_talent = form.seeking_talent.data,
+      seeking_description = form.seeking_description.data
   )
   try:
       db.session.add(venue)
@@ -291,6 +242,25 @@ def delete_venue(venue_id):
   # BONUS CHALLENGE: Implement a button to delete a Venue on a Venue Page, have it so that
   # clicking that button delete it from the db then redirect the user to the homepage
   return None
+
+
+# Delete Venue
+# -----------------------------------------------------------------
+
+@app.route('/venues/<int:venue_id>', methods=['DELETE'])
+def delete_venue(venue_id):
+  try:
+    Artist.query.filter_by(id = venue_id).delete()
+    db.session.commit()
+  except:
+    db.session.rollback()
+  finally:
+    db.session.close()
+    
+  return jsonify({ 'success': True })
+
+
+
 
 #  Artists
 #  ----------------------------------------------------------------
@@ -425,13 +395,11 @@ def edit_artist_submission(artist_id):
       artist.state = request.form['state']
       artist.phone = request.form['phone']
       artist.facebook_link = form.facebook_link.data
-
-      '''
-      #artist.image_link = request.form['image_link']
-      #artist.website = request.form['website']
-      #artist.seeking_venue = True if request.form['seeking_venue'] == 'Yes' else False
-      #artist.seeking_description = request.form['seeking_description']
-      '''
+      artist.image_link = request.form['image_link']
+      artist.website = request.form['website']
+      artist.seeking_venue = True if request.form['seeking_venue'] == 'Yes' else False
+      artist.seeking_description = request.form['seeking_description']
+      
       db.session.commit()
   
   except:
@@ -487,12 +455,11 @@ def edit_venue_submission(venue_id):
     venue.phone = request.form['phone']
     venue.genres = request.form.getlist('genres')
     venue.facebook_link = request.form['facebook_link']
-    '''
     venue.image_link = request.form['image_link']
     venue.website = request.form['website']
     venue.seeking_talent = True if 'seeking_talent' in request.form else False 
     venue.seeking_description = request.form['seeking_description']
-    '''
+    
     db.session.commit()
 
   except: 
@@ -518,7 +485,7 @@ def create_artist_submission():
   # Done
 
   # TODO: modify data to be the data object returned from db insertion
-  # done
+  # Done
 
   form = ArtistForm(request.form)
   
@@ -544,6 +511,22 @@ def create_artist_submission():
       db.session.close()
 
   return render_template('pages/home.html')
+
+
+# Delete Artist
+# -----------------------------------------------------------------
+
+@app.route('/artists/<int:artist_id>', methods=['DELETE'])
+def delete_todo(artist_id):
+  try:
+    Artist.query.filter_by(id = artist_id).delete()
+    db.session.commit()
+  except:
+    db.session.rollback()
+  finally:
+    db.session.close()
+    
+  return jsonify({ 'success': True })
 
 
 #  Shows
@@ -616,6 +599,26 @@ def not_found_error(error):
 @app.errorhandler(500)
 def server_error(error):
     return render_template('errors/500.html'), 500
+
+@app.errorhandler(401)
+def unathorized(error):
+    return render_template('errors/401.html'), 401
+
+@app.errorhandler(403)
+def forbidden(error):
+    return render_template('errors/403.html'), 403
+
+@app.errorhandler(422)
+def not_processable(error):
+    return render_template('errors/500.html'), 422
+
+@app.errorhandler(405)
+def invalid_method(error):
+    return render_template('errors/500.html'), 405
+
+@app.errorhandler(409)
+def duplicate_resource(error):
+    return render_template('errors/500.html'), 409
 
 
 if not app.debug:

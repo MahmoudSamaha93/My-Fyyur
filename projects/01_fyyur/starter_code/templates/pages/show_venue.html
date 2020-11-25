@@ -74,6 +74,30 @@
 		{% endfor %}
 	</div>
 </section>
+<div class="btns" style="display: inline-block;">
+	<button id="edit">Edit</button>
+	<button id="delete">Delete</button>
+</div>
+<script>
+
+	const editBtn = document.querySelector('#edit');
+        editBtn.onclick = function(e) {
+          const venueId = e.target.dataset['id'];
+          fetch('/venues/' + venueId + '/edit', {
+            method: 'POST'
+          });
+        }
+    
+
+	const deleteBtn = document.querySelector('#delete');
+        deleteBtn.onclick = function(e) {
+          const venueId = e.target.dataset['id'];
+          fetch('/venues/' + venueId, {
+            method: 'DELETE'
+          });
+        }
+      
+</script>
 
 {% endblock %}
 
